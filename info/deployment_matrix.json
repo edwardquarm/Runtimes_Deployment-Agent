@@ -1,7 +1,12 @@
 [
   {
-    "model_name": "granite-3.1-8b-instruct",
+    "model_name": "apertus-8b-instruct-2509-fp8-dynamic",
     "deployable": true,
-    "reason": "Deployable. Model VRAM (18 GB) fits on a single GPU (192.0 GB). The initial configuration was missing serving arguments, which has been corrected by recommending tensor-parallel-size=1 and other safe defaults suitable for the AMD hardware."
+    "reason": "VRAM fits and safe serving arguments have been generated. However, deployment requires a GPU of the Ada/Hopper generation for FP8 compatibility. Cannot be deployed concurrently with other models on the single available GPU."
+  },
+  {
+    "model_name": "nvidia-nemotron-3-nano-30b-a3b-fp8",
+    "deployable": true,
+    "reason": "VRAM fits and safe serving arguments have been generated. However, deployment requires a GPU of the Ada/Hopper generation for FP8 compatibility. Cannot be deployed concurrently with other models on the single available GPU."
   }
 ]
