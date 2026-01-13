@@ -1,23 +1,58 @@
-### Deployability Decision Report
+### Deployment Decision Report
 
-#### **Deployable Models**
+This is a **CONDITIONAL GO** for deployment.
 
-*   **granite-3.1-8b-instruct**: Deployable
-    *   **VRAM:** The model's VRAM requirement of 18 GB is well within the 192.0 GB capacity of a single GPU.
-    *   **Hardware Compatibility:** The model is not quantized, so there are no quantization-specific incompatibilities with the available AMD accelerators.
-    *   **Serving Arguments:** The model was missing a `serving_arguments` configuration. A safe default has been generated, setting `tensor-parallel-size` to 1 for single-GPU inference, which is appropriate for this model and hardware.
+Both models, `apertus-8b-instruct-2509-fp8-dynamic` and `nvidia-nemotron-3-nano-30b-a3b-fp8`, are individually deployable to the single GPU, but they **cannot be run concurrently**. The combined VRAM requirement of 42 GB would exceed the GPU's effective capacity after accounting for the KV cache and system overhead.
+
+Furthermore, both models use **FP8 quantization**, which requires a GPU of the **NVIDIA Ada or Hopper generation (e.g., L40S, H100)**. Deployment will fail if the available GPU is from an older generation like Ampere (e.g., A100).
+
+### Model-Specific Analysis
 
 ---
-### OPTIMIZED_SERVING_ARGUMENTS_JSON
+
+#### 1. `apertus-8b-instruct-2509-fp8-dynamic`
+
+*   **Decision**: **Deployable**
+*   **VRAM Analysis**: **GO**. The model requires 9 GB of VRAM, which fits comfortably within the 45 GB available on the GPU.
+*   **Serving Arguments Analysis**: **MISSING**. The model configuration lacks a `serving_arguments` section. I have generated a safe default configuration with `tensor-parallel-size=1` for the single GPU setup.
+*   **Quantization/Hardware Analysis**: **CONDITIONAL**. This model uses FP8 quantization, which is only supported on NVIDIA Ada or Hopper generation GPUs. Deployment is contingent on the host having compatible hardware.
+
+##### Optimized Serving Arguments:
 ```json
 {
-  "model_name": "granite-3.1-8b-instruct",
+  "model_name": "apertus-8b-instruct-2509-fp8-dynamic",
   "serving_arguments": {
     "args": [
       "--uvicorn-log-level=info",
-      "--max-model-len=2048",
       "--trust-remote-code",
-      "--tensor-parallel-size=1"
+      "--tensor-parallel-size=1",
+      "--max-model-len=2048"
+    ],
+    "gpu_count": 1
+  }
+}
+```
+
+
+---
+
+#### 2. `nvidia-nemotron-3-nano-30b-a3b-fp8`
+
+*   **Decision**: **Deployable**
+*   **VRAM Analysis**: **GO**. The model requires 33 GB of VRAM, which fits within the 45 GB available on the GPU.
+*   **Serving Arguments Analysis**: **MISSING**. The model configuration lacks a `serving_arguments` section. I have generated a safe default configuration.
+*   **Quantization/Hardware Analysis**: **CONDITIONAL**. This model uses FP8 quantization and has the same hardware requirement as the `apertus` model: an NVIDIA Ada or Hopper generation GPU is required.
+
+##### Optimized Serving Arguments:
+```json
+{
+  "model_name": "nvidia-nemotron-3-nano-30b-a3b-fp8",
+  "serving_arguments": {
+    "args": [
+      "--uvicorn-log-level=info",
+      "--trust-remote-code",
+      "--tensor-parallel-size=1",
+      "--max-model-len=2048"
     ],
     "gpu_count": 1
   }

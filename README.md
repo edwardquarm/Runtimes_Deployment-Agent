@@ -42,6 +42,16 @@ uv pip install -e .
 pip install -e .
 ```
 
+## Streamlit UI
+
+Run the Streamlit app locally:
+
+```bash
+streamlit run app.py
+```
+
+The app opens in your browser and prompts for the API key, pull secret, and YAML upload in the sidebar.
+
 ## CLI Usage
 
 ### Required inputs

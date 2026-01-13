@@ -1,12 +1,22 @@
 {
-  "granite-3.1-8b-instruct": {
-    "model_name": "granite-3.1-8b-instruct",
-    "image": "oci://registry.redhat.io/rhelai1/modelcar-granite-3-1-8b-instruct:1.5",
+  "nvidia-nemotron-3-nano-30b-a3b-fp8": {
+    "model_name": "nvidia-nemotron-3-nano-30b-a3b-fp8",
+    "image": "registry.stage.redhat.io/rhai/modelcar-nvidia-nemotron-3-nano-30b-a3b-fp8:3.0",
     "arguments": [],
-    "model_size_gb": 15.24,
+    "model_size_gb": 0,
+    "model_p_billion": 30.0,
+    "quantization_bits": 8,
+    "required_vram_gb": 33,
+    "supported_arch": "unknown"
+  },
+  "apertus-8b-instruct-2509-fp8-dynamic": {
+    "model_name": "apertus-8b-instruct-2509-fp8-dynamic",
+    "image": "registry.stage.redhat.io/rhai/modelcar-apertus-8b-instruct-2509-fp8-dynamic:3.0",
+    "arguments": [],
+    "model_size_gb": 0,
     "model_p_billion": 8.0,
-    "quantization_bits": null,
-    "required_vram_gb": 18,
-    "supported_arch": "amd64"
+    "quantization_bits": 8,
+    "required_vram_gb": 9,
+    "supported_arch": "unknown"
   }
 }

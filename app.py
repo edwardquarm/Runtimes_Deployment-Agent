@@ -10,6 +10,7 @@ import plotly.graph_objects as go
 import pandas as pd
 import json
 from pathlib import Path
+import selectors
 
 from runtimes_dep_agent.utils.path_utils import detect_repo_root
 
@@ -189,6 +190,61 @@ def load_deployment_matrix():
     except Exception as exc:
         st.error(f"Error loading deployment matrix: {exc}")
         return []
+
+
+def stream_agent_command(cmd, env, cwd, live_output_placeholder, timeout_sec=2100, tail_lines=200):
+    """Run a command and stream stdout/stderr into the UI while capturing full output."""
+    output_lines = []
+    start_time = time.time()
+
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        env=env,
+        cwd=cwd,
+    )
+
+    assert proc.stdout is not None
+    selector = selectors.DefaultSelector()
+    selector.register(proc.stdout, selectors.EVENT_READ)
+
+    if live_output_placeholder is not None:
+        live_output_placeholder.code("Waiting for output...")
+
+    try:
+        while True:
+            if time.time() - start_time > timeout_sec:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                raise subprocess.TimeoutExpired(cmd, timeout_sec, output="\n".join(output_lines))
+
+            events = selector.select(timeout=0.1)
+            for key, _ in events:
+                line = key.fileobj.readline()
+                if not line:
+                    continue
+                output_lines.append(line.rstrip("\n"))
+                if live_output_placeholder is not None:
+                    tail = "\n".join(output_lines[-tail_lines:])
+                    live_output_placeholder.code(tail)
+
+            if proc.poll() is not None:
+                for line in proc.stdout:
+                    output_lines.append(line.rstrip("\n"))
+                if live_output_placeholder is not None and output_lines:
+                    tail = "\n".join(output_lines[-tail_lines:])
+                    live_output_placeholder.code(tail)
+                break
+    finally:
+        selector.close()
+
+    return proc.returncode or 0, "\n".join(output_lines)
 
 # Function to extract QA summary from agent output
 def extract_qa_summary(agent_output: str) -> tuple[str, str]:
@@ -676,6 +732,12 @@ else:
         with st.spinner("Running supervisor agent..."):
             time.sleep(0.1)  # Small delay to show spinner
         st.markdown("")  # Add spacing after spinner
+
+    live_output_placeholder = None
+    if st.session_state.workflow_step == 1 and not st.session_state.workflow_completed:
+        st.subheader("Live Agent Output")
+        st.caption("Streaming the last 200 lines while the agent runs.")
+        live_output_placeholder = st.empty()
     
     # Display outputs based on workflow step
     # Only show Configuration Agent Results if agent has started
@@ -1120,20 +1182,20 @@ else:
                         if os.path.exists(venv_bin):
                             env["PATH"] = f"{venv_bin}:{env.get('PATH', '')}"
                         
-                        # Run the command and capture output
-                        result = subprocess.run(
+                        if live_output_placeholder is None:
+                            live_output_placeholder = st.empty()
+
+                        env["PYTHONUNBUFFERED"] = "1"
+                        returncode, output = stream_agent_command(
                             cmd,
-                            capture_output=True,
-                            text=True,
-                            timeout=2100,  # 35 minute timeout (QA tests can take up to 30 minutes)
                             env=env,
-                            cwd=project_dir  # Run from project directory
+                            cwd=project_dir,
+                            live_output_placeholder=live_output_placeholder,
+                            timeout_sec=2100,
+                            tail_lines=200,
                         )
-                        
-                        # Store the output (include return code info)
-                        output = result.stdout + result.stderr
-                        if result.returncode != 0:
-                            output = f"Command exited with code {result.returncode}\n\n{output}"
+                        if returncode != 0:
+                            output = f"Command exited with code {returncode}\n\n{output}"
                         
                         st.session_state.agent_command_output = output
                         st.session_state.agent_output_text = output
@@ -1144,9 +1206,13 @@ else:
                         
                         # Advance to next step
                         st.session_state.workflow_step = 2
-                    except subprocess.TimeoutExpired:
-                        st.session_state.agent_command_output = "Error: Command timed out after 35 minutes"
-                        st.session_state.agent_output_text = "Error: Command timed out after 35 minutes"
+                    except subprocess.TimeoutExpired as exc:
+                        timeout_message = "Error: Command timed out after 35 minutes"
+                        partial_output = exc.output or ""
+                        if partial_output:
+                            timeout_message = f"{timeout_message}\n\n{partial_output}"
+                        st.session_state.agent_command_output = timeout_message
+                        st.session_state.agent_output_text = timeout_message
                         st.session_state.workflow_step = 6
                     except Exception as e:
                         st.session_state.agent_command_output = f"Error running agent command: {str(e)}"

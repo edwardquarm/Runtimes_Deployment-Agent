@@ -1,36 +1,32 @@
 ### Configuration Summary
-As reported by the Configuration Specialist, the model-car configuration specifies the following model:
-- **Model:** granite-3.1-8b-instruct
-- **Parameter Count:** 8 Billion
-- **Estimated VRAM:** 18 GB
+As reported by the **Configuration Specialist**, the preloaded model-car configuration includes two models: `apertus-8b-instruct-2509-fp8-dynamic` (requiring 9 GB VRAM) and `nvidia-nemotron-3-nano-30b-a3b-fp8` (requiring 33 GB VRAM). The total estimated VRAM for a concurrent deployment is **42 GB**.
 
 ### Accelerator Summary
-According to the Accelerator Specialist, the cluster environment is healthy and has available capacity:
-- **Status:** GPU available
-- **Provider:** AMD
-- **Connectivity:** The cluster connection was successful, with no authentication or access failures.
+As reported by the **Accelerator Specialist**, the cluster has an available **NVIDIA** GPU. The cluster is accessible, and authentication was successful. The vLLM runtime image to be used for deployment is `registry.redhat.io/rhaiis/vllm-cuda-rhel9@sha256:094db84a1da5e8a575d0c9eade114fa30f4a2061064a338e3e032f3578f8082a`.
 
 ### Deployment Decision
-The Decision Specialist issued a **GO** verdict for deployment.
+The **Decision Specialist** has issued a **CONDITIONAL GO** for deployment.
 
-The decision was based on the following factors:
-- **GPU Capacity vs Model Requirements:** The model's estimated VRAM requirement of 18 GB is well within the capacity of the available AMD accelerators.
-- **Serving-argument Suitability:** The specialist identified that the model-car was missing a `serving_arguments` section. To ensure a stable deployment, it generated a safe default configuration.
-- **Configuration Update:** Following the specialist's recommendation, the optimized serving arguments were written back to the model-car configuration by the Configuration Specialist. The applied arguments included setting the `tensor-parallel-size` to 1 for single-GPU inference:
-  
+The key conditions and findings are:
+*   **GPU Capacity vs. Model Requirements**: While each model can be deployed individually, their combined VRAM requirement of 42 GB is too large for them to be run concurrently on the available GPU.
+*   **Serving-Argument Suitability**: The initial model-car configuration was missing the `serving_arguments` section for both models. The Decision Specialist generated a safe default configuration for each.
+*   **Environment and Hardware Health**: The deployment is contingent on the host having an **NVIDIA Ada or Hopper generation GPU** (e.g., L40S, H100) because both models use FP8 quantization, which is not supported on older hardware.
+
+The optimized serving arguments were successfully written back to the model-car configuration by the **Configuration Specialist**. The applied optimization for both models was:
 ```json
-  "serving_arguments": {
-    "args": [
-      "--uvicorn-log-level=info",
-      "--max-model-len=2048",
-      "--trust-remote-code",
-      "--tensor-parallel-size=1"
-    ],
-    "gpu_count": 1
-  }
-  ```
+"serving_arguments": {
+  "args": [
+    "--uvicorn-log-level=info",
+    "--trust-remote-code",
+    "--tensor-parallel-size=1",
+    "--max-model-len=2048"
+  ],
+  "gpu_count": 1
+}
+```
 
-- **Environment Health:** The Accelerator Specialist confirmed that the cluster is reachable and accelerators could be inspected, indicating a healthy environment for deployment.
 
 ### QA Validation
-As reported by the QA Specialist, the validation test suite **PASSED**. The tests were run against the `quay.io/rhoai/odh-vllm-rocm-rhel9@sha26:8fbdbf70f34250f36868c8a3b5dabe090218b081c38c1290d7f0e515078e16d2` runtime image provided by the Accelerator Specialist. The suite successfully deployed the `granite-3.1-8b-instruct` model and verified that it served inference requests correctly on the AMD GPU hardware.
+The **QA Specialist** reported that the model validation test suite **FAILED**.
+
+The failure was not due to the model or the runtime image itself, but a configuration error in the test suite's deployment definition. The `storage-initializer` failed because the `storageUri` for the models was an unsupported container image path instead of a valid URI protocol like `s3://` or `hf://`. The tests could not be completed, and therefore the vLLM runtime could not be properly validated.
